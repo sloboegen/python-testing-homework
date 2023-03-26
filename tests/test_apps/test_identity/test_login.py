@@ -1,90 +1,87 @@
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Protocol, TypedDict, final, Callable
-from typing_extensions import Unpack, TypeAlias
+from typing import TYPE_CHECKING
 
+import django.http
 import pytest
 from django.test.client import Client
 from django.urls import reverse
-from mimesis.providers.person import Person
 
 from server.apps.identity.models import User
 
 if TYPE_CHECKING:
-    from tests.plugins.identity.user import RegistrationData
+    from tests.plugins.http_helper import RedirectAssertion
+    from tests.plugins.identity.user import RegistrationData, UserDataPassword
 
 
-@final
-class LoginData(TypedDict):
-    username: str
-    password: str
-
-
-class LoginDataFactory(Protocol):
-    def __call__(self, **fields: Unpack[LoginData]) -> LoginData:
-        """Login data factory protocol."""
-
-
-@pytest.fixture()
-def login_data_registered_factory(user: User) -> LoginDataFactory:
-    def factory(**fields: Unpack[LoginData]) -> LoginData:
-        return {
-            'username': user.email,
-            'password': user.password,
-            **fields,
+def _login_request(client: Client, username: str, password: str) -> django.http.HttpResponse:
+    return client.post(
+        reverse('identity:login'),
+        data={
+            'username': username,
+            'password': password,
         }
-
-    return factory
-
-
-@pytest.fixture()
-def login_data_unknown_factory(user: User) -> LoginDataFactory:
-    def factory(**fields: Unpack[LoginData]) -> LoginData:
-        provider = Person()
-        return {
-            'username': provider.email(),
-            'password': provider.password(),
-            **fields,
-        }
-
-    return factory
+    )
 
 
 @pytest.mark.django_db()
 def test_success_login(
     client: Client,
-    login_data_registered_factory: LoginDataFactory,
+    user_data: 'UserDataPassword',
+    assert_redirect: 'RedirectAssertion',
 ) -> None:
     """This test ensures that registered user can successfully log in."""
-    login_data = login_data_registered_factory()
-
-    response = client.post(
-        reverse('identity:login'),
-        data=login_data,
+    response = _login_request(
+        client,
+        username=user_data['email'],
+        password=user_data['password'],
     )
 
-    assert response.status_code == HTTPStatus.FOUND
-    assert response.get('Location') == reverse('pictures:dashboard')
-
-# @pytest.mark.django_db()
-# def test_failed_login_missing_fields(
-#     client: Client,
-#     login
-# ) -> None:
-#     """This test ensures that user can not log in without providing email and password."""
-#     pass
+    assert_redirect(response, reverse('pictures:dashboard'))
 
 
-# @pytest.mark.django_db()
-# def test_failed_login_unknown_user(
-#     client: Client,
-#     login_data_unknown: LoginData,
-# ) -> None:
-#     """This test ensures that unknown user can not log in."""
-#
-#     response = client.post(
-#         reverse('identity:login'),
-#         data=login_data_registered,
-#     )
-#
-#     assert response.status_code == HTTPStatus.FOUND
-#     assert response.get('Location') == reverse('pictures:dashboard')
+@pytest.mark.django_db()
+def test_login_already_logged_in(
+    user: User,
+    user_client: Client,
+    assert_redirect: 'RedirectAssertion',
+) -> None:
+    """This test ensures that log in for already logged-in user redirects to dashboard."""
+    response = _login_request(
+        user_client,
+        username='',
+        password=''
+    )
+
+    assert_redirect(response, reverse('pictures:dashboard'))
+
+
+@pytest.mark.django_db()
+@pytest.mark.parametrize('password', ['', '#!', 'incorrect', '1' * 100])
+def test_login_incorrect_password(
+    client: Client,
+    user_data: 'UserDataPassword',
+    password: str
+) -> None:
+    """This test ensures that user must provide correct email and password."""
+    response = _login_request(
+        client,
+        username=user_data['email'],
+        password=password
+    )
+
+    assert response.status_code == HTTPStatus.OK
+
+
+@pytest.mark.django_db()
+def test_login_unknown_user(
+    client: Client,
+    registration_data: 'RegistrationData',
+) -> None:
+    """This test ensures that unregistered user can not log in."""
+    response = _login_request(
+        client,
+        username=registration_data['email'],
+        password=registration_data['password1'],
+    )
+
+    assert response.status_code == HTTPStatus.OK

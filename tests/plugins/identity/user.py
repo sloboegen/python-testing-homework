@@ -21,6 +21,11 @@ class UserData(TypedDict, total=False):
 
 
 @final
+class UserDataPassword(UserData, total=False):
+    password: str
+
+
+@final
 class RegistrationData(UserData, total=False):
     password1: str
     password2: str
@@ -32,10 +37,29 @@ class RegistrationDataFactory(Protocol):
         """User data factory protocol."""
 
 
+UserAssertion: TypeAlias = Callable[[str, RegistrationData], None]
+
+
+@pytest.fixture(scope='session')
+def assert_correct_user() -> UserAssertion:
+    def factory(email: str, expected: UserData) -> None:
+        user = User.objects.get(email=email)
+        # Special fields:
+        assert user.id
+        assert user.is_active
+        assert not user.is_superuser
+        assert not user.is_staff
+        # All other fields:
+        for field_name, data_value in expected.items():
+            assert getattr(user, field_name) == data_value
+
+    return factory
+
+
 @pytest.fixture()
-def registration_data_factory(faker_seed: int) -> RegistrationDataFactory:
+def registration_data_factory() -> RegistrationDataFactory:
     def factory(**fields: Unpack[RegistrationData]) -> RegistrationData:
-        mf = Field(locale=Locale.RU, seed=faker_seed)
+        mf = Field(locale=Locale.RU)
         password = mf('password')
         schema = Schema(schema=lambda: {
             'email': mf('person.email'),
@@ -71,14 +95,33 @@ def expected_user_data(registration_data: RegistrationData) -> UserData:
 
 
 @pytest.fixture()
+@pytest.mark.django_db()
+def user_data(
+    registration_data: RegistrationData,
+    expected_user_data: UserData,
+    assert_correct_user: 'UserAssertion',
+) -> UserDataPassword:
+    user = User(**expected_user_data)
+    user.set_password(registration_data['password1'])
+    user.save()
+
+    assert_correct_user(user.email, expected_user_data)
+
+    return {
+        **expected_user_data,
+        **{'password': registration_data['password1']}
+    }
+
+
+@pytest.fixture()
 def user(
     registration_data: RegistrationData,
-    expected_user_data: UserData
+    expected_user_data: UserData,
 ) -> User:
     user = User(**expected_user_data)
     user.set_password(registration_data['password1'])
     user.save()
-    print(f'here: {user.password}')
+
     return user
 
 
@@ -87,22 +130,3 @@ def user_client(user: User) -> Client:
     client = Client()
     client.force_login(user)
     return client
-
-
-UserAssertion: TypeAlias = Callable[[str, RegistrationData], None]
-
-
-@pytest.fixture(scope='session')
-def assert_correct_user() -> UserAssertion:
-    def factory(email: str, expected: UserData) -> None:
-        user = User.objects.get(email=email)
-        # Special fields:
-        assert user.id
-        assert user.is_active
-        assert not user.is_superuser
-        assert not user.is_staff
-        # All other fields:
-        for field_name, data_value in expected.items():
-            assert getattr(user, field_name) == data_value
-
-    return factory

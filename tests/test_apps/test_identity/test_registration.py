@@ -8,6 +8,7 @@ from django.urls import reverse
 from server.apps.identity.models import User
 
 if TYPE_CHECKING:
+    from tests.plugins.http_helper import RedirectAssertion
     from tests.plugins.identity.user import (
         RegistrationData,
         RegistrationDataFactory,
@@ -21,7 +22,8 @@ def test_successful_registration(
     client: Client,
     registration_data: 'RegistrationData',
     expected_user_data: 'UserData',
-    assert_correct_user: 'UserAssertion'
+    assert_correct_user: 'UserAssertion',
+    assert_redirect: 'RedirectAssertion',
 ) -> None:
     """This test checks correctness of the successful registration."""
     response = client.post(
@@ -29,9 +31,7 @@ def test_successful_registration(
         data=registration_data,
     )
 
-    assert response.status_code == HTTPStatus.FOUND
-    assert response.get('Location') == reverse('identity:login')
-
+    assert_redirect(response, reverse('identity:login'))
     assert_correct_user(registration_data['email'], expected_user_data)
 
 
