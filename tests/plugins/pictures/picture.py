@@ -7,7 +7,7 @@ from typing_extensions import Unpack
 
 
 @final
-class Picture(TypedDict):
+class Picture(TypedDict, total=False):
     foreign_id: int
     url: str
 
@@ -23,7 +23,7 @@ def picture_factory() -> PictureFactory:
         return {
             'foreign_id': random.randint(a=1, b=100),
             'url': Internet().url(),
-            **fields,
+            **fields,  # type:ignore[misc]
         }
 
     return factory

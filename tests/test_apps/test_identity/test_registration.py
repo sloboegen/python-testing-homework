@@ -32,7 +32,7 @@ def test_successful_registration(
     )
 
     assert_redirect(response, reverse('identity:login'))
-    assert_correct_user(registration_data['email'], expected_user_data)
+    assert_correct_user(registration_data['email'], expected_user_data)  # type: ignore[arg-type]
 
 
 @pytest.mark.django_db()
@@ -43,7 +43,7 @@ def test_failed_registration_missing_field(
     field: str,
 ) -> None:
     """This test ensures that empty value of the required field leads to failed registration."""
-    post_data = registration_data_factory(**{field: ''})
+    post_data = registration_data_factory(**{field: ''})  # type: ignore[arg-type]
 
     response = client.post(
         reverse('identity:registration'),

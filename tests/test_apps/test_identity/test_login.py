@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from tests.plugins.identity.user import RegistrationData, UserDataPassword
 
 
-def _login_request(client: Client, username: str, password: str) -> django.http.HttpResponse:
+def _login_request(client: Client, username: str, password: str):
     return client.post(
         reverse('identity:login'),
         data={

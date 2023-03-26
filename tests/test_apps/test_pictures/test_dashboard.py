@@ -18,7 +18,7 @@ _ListEq: TypeAlias = Callable[[list[_T], list[_T]], bool]
 
 
 @pytest.fixture()
-def _list_eq() -> _ListEq:
+def _list_eq() -> _ListEq[_T]:
     def __list_eq(xs: list[_T], ys: list[_T]) -> bool:
         f = True
         for x in xs:
@@ -54,7 +54,7 @@ def test_add_pictures_to_favourites(
     user_client: Client,
     picture_factory: 'PictureFactory',
     picture_count: int,
-    _list_eq: _ListEq,
+    _list_eq: _ListEq['Picture'],
 ) -> None:
     """This test ensures correctness of saving pictures to favourites."""
     added_pictures: list['Picture'] = [picture_factory() for _ in range(picture_count)]
@@ -73,7 +73,7 @@ def test_add_repetitions_to_favourites(
     user_client: Client,
     picture_factory: 'PictureFactory',
     times: int,
-    _list_eq: _ListEq,
+    _list_eq: _ListEq['Picture'],
 ) -> None:
     """This test ensures correctness of saving one photo to favourites many times."""
     picture: 'Picture' = picture_factory()

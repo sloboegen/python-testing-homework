@@ -31,7 +31,6 @@ class RegistrationData(UserData, total=False):
     password2: str
 
 
-@final
 class RegistrationDataFactory(Protocol):
     def __call__(self, **fields: Unpack[RegistrationData]) -> RegistrationData:
         """User data factory protocol."""
@@ -72,7 +71,7 @@ def registration_data_factory() -> RegistrationDataFactory:
         })
 
         return {
-            **schema.create(iterations=1)[0],
+            **schema.create(iterations=1)[0],  # type: ignore[misc]
             **{'password1': password, 'password2': password},
             **fields,
         }
@@ -87,7 +86,7 @@ def registration_data(registration_data_factory: RegistrationDataFactory) -> Reg
 
 @pytest.fixture()
 def expected_user_data(registration_data: RegistrationData) -> UserData:
-    return {
+    return {  # type:ignore[return-value]
         key_name: value_part
         for key_name, value_part in registration_data.items()
         if not key_name.startswith('password')
@@ -105,10 +104,10 @@ def user_data(
     user.set_password(registration_data['password1'])
     user.save()
 
-    assert_correct_user(user.email, expected_user_data)
+    assert_correct_user(user.email, expected_user_data)  # type: ignore[arg-type]
 
     return {
-        **expected_user_data,
+        **expected_user_data,  # type: ignore[misc]
         **{'password': registration_data['password1']}
     }
 
