@@ -1,86 +1,72 @@
-from collections.abc import Iterable
-from typing import TYPE_CHECKING, Callable, TypeVar
+import contextlib
+import json
+from http import HTTPStatus
+
+from typing_extensions import TypeAlias
+from urllib.parse import urljoin
 
 import pytest
-from django.test.client import Client
-from django.urls import reverse
-from typing_extensions import TypeAlias
+import httpretty
 
-from server.apps.identity.models import User
-from server.apps.pictures.logic.repo.queries import favourite_pictures
-from server.apps.pictures.models import FavouritePicture
+from django.test.client import Client
+
+from django.urls import reverse
+
+from server.settings.components import placeholder
+
+from typing import TYPE_CHECKING, TypedDict, Optional, Callable
+
+from collections.abc import Iterator
 
 if TYPE_CHECKING:
-    from tests.plugins.pictures.picture import Picture, PictureFactory
+    from tests.plugins.pictures.picture import PictureFactory
+    from tests.plugins.pictures.helper import _ListEq
 
-_T = TypeVar('_T')
-_ListEq: TypeAlias = Callable[[list[_T], list[_T]], bool]
+
+class PictureData(TypedDict):
+    id: int
+    url: str
+
+
+FetchingPhotosAPI: TypeAlias = Callable[[Optional[list[PictureData]]], Iterator[PictureData]]
 
 
 @pytest.fixture()
-def _list_eq() -> _ListEq[_T]:
-    def __list_eq(xs: list[_T], ys: list[_T]) -> bool:
-        f = True
-        for x in xs:
-            f &= x in ys
+def fetching_photos_api_mock(picture_factory: 'PictureFactory') -> FetchingPhotosAPI:
+    """Context-manager mock for PLACEHOLDER_API_URL/photos that enables body customization."""
 
-        for y in ys:
-            f &= y in xs
+    @contextlib.contextmanager
+    def inner(body: Optional[list[PictureData]] = None) -> Iterator[PictureData]:
+        if body is None:
+            picture = picture_factory()
+            body = [{'id': picture['foreign_id'], 'url': picture['url']}]
 
-        return f
+        with httpretty.httprettized():
+            httpretty.register_uri(
+                method=httpretty.GET,
+                uri=urljoin(placeholder.PLACEHOLDER_API_URL, 'photos'),
+                body=json.dumps(body),
+                status=200,
+                content_type='application/json',
+            )
 
-    return __list_eq
+            yield body
 
+            httpretty.has_request()
 
-def _convert_favourite_picture(favourite_picture: FavouritePicture) -> 'Picture':
-    return {
-        'foreign_id': favourite_picture.foreign_id,
-        'url': favourite_picture.url,
-    }
-
-
-def _load_pictures(user_client: Client, pictures: Iterable['Picture']) -> None:
-    for picture in pictures:
-        user_client.post(
-            reverse('pictures:dashboard'),
-            data=picture,
-        )
+    return inner
 
 
 @pytest.mark.django_db()
-@pytest.mark.parametrize('picture_count', [1, 2, 4, 10, 50, 100])
-def test_add_pictures_to_favourites(
-    user: User,
+def test_dashboard_picture_fetching(
     user_client: Client,
-    picture_factory: 'PictureFactory',
-    picture_count: int,
-    _list_eq: _ListEq['Picture'],
+    fetching_photos_api_mock: FetchingPhotosAPI,
+    assert_list_eq: '_ListEq[PictureData]',
 ) -> None:
-    """This test ensures correctness of saving pictures to favourites."""
-    added_pictures: list['Picture'] = [picture_factory() for _ in range(picture_count)]
+    with fetching_photos_api_mock() as body:
+        response = user_client.get(reverse('pictures:dashboard'))
 
-    _load_pictures(user_client, added_pictures)
-
-    user_pictures = list(map(_convert_favourite_picture, favourite_pictures.by_user(user.id).all()))
-
-    assert _list_eq(added_pictures, user_pictures)
+        assert response.status_code == HTTPStatus.OK
+        assert_list_eq(body, response.context['pictures'])
 
 
-@pytest.mark.django_db()
-@pytest.mark.parametrize('times', [1, 2, 4, 10])
-def test_add_repetitions_to_favourites(
-    user: User,
-    user_client: Client,
-    picture_factory: 'PictureFactory',
-    times: int,
-    _list_eq: _ListEq['Picture'],
-) -> None:
-    """This test ensures correctness of saving one photo to favourites many times."""
-    picture: 'Picture' = picture_factory()
-    pictures = [picture for _ in range(times)]
-
-    _load_pictures(user_client, pictures)
-
-    user_pictures = list(map(_convert_favourite_picture, favourite_pictures.by_user(user.id).all()))
-
-    assert _list_eq([picture for _ in range(times)], user_pictures)

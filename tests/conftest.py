@@ -12,4 +12,5 @@ pytest_plugins = [
     'plugins.http_helper',
     'plugins.identity.user',
     'plugins.pictures.picture',
+    'plugins.pictures.helper',
 ]
