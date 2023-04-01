@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Callable, Any
+from typing import Any, Callable
 
 import pytest
 from typing_extensions import TypeAlias

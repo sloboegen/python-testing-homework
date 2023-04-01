@@ -18,6 +18,7 @@ class PicturesFetch(object):
         return self._fetch_pictures(limit)
 
     def _fetch_pictures(self, limit: int) -> List[placeholder.PictureResponse]:
+        print(f'---Fetching {self._settings.PLACEHOLDER_API_URL}----\n')
         return placeholder.PicturesFetch(
             api_url=self._settings.PLACEHOLDER_API_URL,
             api_timeout=self._settings.PLACEHOLDER_API_TIMEOUT,

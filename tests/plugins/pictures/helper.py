@@ -1,7 +1,7 @@
 from typing import Callable
-from typing_extensions import TypeAlias, TypeVar, Protocol
 
 import pytest
+from typing_extensions import TypeAlias, TypeVar
 
 _T = TypeVar('_T')
 _ListEq: TypeAlias = Callable[[list[_T], list[_T]], None]

@@ -12,8 +12,8 @@ from server.apps.pictures.logic.repo.queries import favourite_pictures
 from server.apps.pictures.models import FavouritePicture
 
 if TYPE_CHECKING:
-    from tests.plugins.pictures.picture import Picture, PictureFactory
     from tests.plugins.pictures.helper import _ListEq
+    from tests.plugins.pictures.picture import Picture, PictureFactory
 
 
 def _convert_favourite_picture(favourite_picture: FavouritePicture) -> 'Picture':

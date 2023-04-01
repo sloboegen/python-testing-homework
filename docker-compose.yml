@@ -63,6 +63,14 @@ services:
 #   some_worker:
 #     <<: *web
 #     command: python manage.py worker_process
+  json-server:
+    <<: &json-server
+      image: vimagick/json-server
+      command: --host 0.0.0.0 --port 3000 /opt/jsonserver/db.json
+      volumes:
+        - ./tests/data:/opt/jsonserver
+      networks:
+        - webnet
 
 networks:
   # Network for your internals, use it by default:
